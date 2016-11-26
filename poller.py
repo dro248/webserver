@@ -4,6 +4,11 @@ import socket
 import sys
 import traceback
 
+try:
+    from http_parser.parser import HttpParser
+except ImportError:
+    from http_parser.pyparser import HttpParser
+
 class Poller:
     """ Polling server """
     def __init__(self,port):
@@ -11,7 +16,8 @@ class Poller:
         self.port = port
         self.open_socket()
         self.clients = {}
-        self.size = 1024
+        self.cache = {}
+        self.size = 1024 * 10
 
     def open_socket(self):
         """ Setup the socket for incoming clients """
@@ -60,6 +66,7 @@ class Poller:
         else:
             # close the socket
             self.clients[fd].close()
+            del self.cache[fd]
             del self.clients[fd]
 
     def handleServer(self):
@@ -77,11 +84,11 @@ class Poller:
             # set client socket to be non blocking
             client.setblocking(0)
             self.clients[client.fileno()] = client
+            self.cache[client.fileno()] = ""
             self.poller.register(client.fileno(),self.pollmask)
 
     def handleClient(self,fd):
         try:
-            print "Clients:", self.clients
             data = self.clients[fd].recv(self.size)
         except socket.error, (value,message):
             # if no data is available, move on to another client
@@ -96,20 +103,26 @@ class Poller:
             #       - if it isn't a full message, store it in the client's cache
             #       - otherwise, parse it with HTTPParser
 
-            print self.clients
+            # if end of http request found...
+            if data.find("\r\n\r\n") != -1:
+                last_chunk = data[:data.find("\r\n\r\n")+4]
+                # send http real response istead of "okay"
+                self.clients[fd].send("okay\n")
+                # append stuff to cache
+                self.cache[fd] += last_chunk
+                self.clients[fd].send(self.cache[fd])
+                self.cache[fd] = ""
+            else:
+                # append stuff to cache
+                self.cache[fd] += data
 
-            # append stuff to cache
-            # self.clients[fd].cache += data
-
-            # # if end of http request found...
-            # # if data.find("\r\n\r\n"):
-            # if data.find("##") != -1:
-            #     print "total message:", self.clients[fd].cache
-            #     self.clients[fd].send("okay")
-
-            # tell client okay
-            self.clients[fd].send(data)
         else:
             self.poller.unregister(fd)
             self.clients[fd].close()
+            del self.cache[fd]
             del self.clients[fd]
+
+    def parse_request(self, req):
+        p = HttpParser()
+        logging.debug("YO DAWG WE PARSIN")
+
