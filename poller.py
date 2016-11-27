@@ -5,7 +5,11 @@ import sys
 import traceback
 import argparse
 import logging
-from httplib import HTTPResponse
+
+try:
+    from http_parser.parser import HttpParser
+except ImportError:
+    from http_parser.pyparser import HttpParser
 
 class Poller:
     """ Polling server """
@@ -29,7 +33,7 @@ class Poller:
         except socket.error, (value,message):
             if self.server:
                 self.server.close()
-            print "Could not open socket: " + message
+            logging.error("Could not open socket: " + message)
             sys.exit(1)
 
     def run(self):
@@ -78,16 +82,13 @@ class Poller:
                 # then return
                 if value == errno.EAGAIN or errno.EWOULDBLOCK:
                     return
-                print traceback.format_exc()
+                logging.error(traceback.format_exc())
                 sys.exit()
             # set client socket to be non blocking
             client.setblocking(0)
             self.clients[client.fileno()] = client
             self.cache[client.fileno()] = ""
             self.poller.register(client.fileno(),self.pollmask)
-
-    def reappend(string, delim):
-        return string+delim
 
     def handleClient(self,fd):
         try:
@@ -96,42 +97,38 @@ class Poller:
             # if no data is available, move on to another client
             if value == errno.EAGAIN or errno.EWOULDBLOCK:
                 return
-            print traceback.format_exc()
+            logging.error(traceback.format_exc())
             sys.exit()
 
         if data:
-            # TODO:
-            #   - if there is data received on this socket, handle it
-            #       - if it isn't a full message, store it in the client's cache
-            #       - otherwise, parse it with HTTPParser
             # if end of http request found...
-            print data
-            if data.find("\r\n\r\n") != -1:
+            if "\r\n\r\n" in data:
                 chunks = data.split("\r\n\r\n")
 
                 # adding the \r\n\r\n back into the chunks that had it
                 for i in range(len(chunks)):
-                    if i is not range(len(chunks)-1):
-                        logging.debug("adding \\r\\n\\r\\n to %s" % chunks[i])
+                    if i is not len(chunks)-1:
+                        #logging.debug("adding \\r\\n\\r\\n to %s" % chunks[i])
                         chunks[i] += "\r\n\r\n"
 
                 # append the last bit of the request to the cache
                 self.cache[fd] += chunks[0]
-                self.handle_request(self.cache[fd])
+                self.handle_request(self.cache[fd], fd)
                 # remove the last bit of the request that we are handling and clear the cache
                 chunks.pop(0)
                 self.cache[fd] = ""
 
                 for req in chunks:
                     if req.endswith("\r\n\r\n"):
-                        #return a response...and stuff 
-                        self.handle_request(req)
+                        # return a response...and stuff 
+                        # are we sure that fd is the right socket
+                        self.handle_request(req, fd)
                     else:
                         self.cache[fd] = req
             else:
                 # append stuff to cache
+                logging.debug("Appending to cache[%i] += %s" % (fd, data))
                 self.cache[fd] += data
-
         else:
             self.poller.unregister(fd)
             self.clients[fd].close()
@@ -139,12 +136,20 @@ class Poller:
             del self.clients[fd]
 
     def parse_request(self, req):
-        resp = HTTPResponse(req)
-        return resp.begin()
+        parser = HttpParser()
+        num_parsed = parser.execute(req, len(req))
+        if not parser.is_headers_complete() or parser.is_partial_body() or not parser.is_message_complete():
+            logging.error("Error parsing request")
+            logging.info("Request: %s" % req)
+            sys.exit(1)
+        else:
+            return parser
 
-    def handle_request(self, request):
-        head = self.parse_request(request)
-        logging.debug(head.)
-        # Form the response
-        self.clients[fd].send("okay\n")
+    def handle_request(self, req, fd):
+        parser = self.parse_request(req)
+        headers = parser.get_headers()
+        # TODO: Form the response
+        response = "HTTP/1.1 %s\r\n%s\r\nSANTI!" % ("200 OK", "Content-Type: text/plain\r\n")
+        logging.debug(response)
+        self.clients[fd].send(response)
 
