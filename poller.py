@@ -3,21 +3,20 @@ import select
 import socket
 import sys
 import traceback
-
-try:
-    from http_parser.parser import HttpParser
-except ImportError:
-    from http_parser.pyparser import HttpParser
+import argparse
+import logging
+from httplib import HTTPResponse
 
 class Poller:
     """ Polling server """
-    def __init__(self,port):
+    def __init__(self,args):
         self.host = ""
-        self.port = port
+        self.port = args.port
         self.open_socket()
         self.clients = {}
         self.cache = {}
         self.size = 1024 * 10
+        logging.basicConfig(level=logging.DEBUG if args.debug else logging.WARN)
 
     def open_socket(self):
         """ Setup the socket for incoming clients """
@@ -87,6 +86,9 @@ class Poller:
             self.cache[client.fileno()] = ""
             self.poller.register(client.fileno(),self.pollmask)
 
+    def reappend(string, delim):
+        return string+delim
+
     def handleClient(self,fd):
         try:
             data = self.clients[fd].recv(self.size)
@@ -102,16 +104,30 @@ class Poller:
             #   - if there is data received on this socket, handle it
             #       - if it isn't a full message, store it in the client's cache
             #       - otherwise, parse it with HTTPParser
-
             # if end of http request found...
+            print data
             if data.find("\r\n\r\n") != -1:
-                last_chunk = data[:data.find("\r\n\r\n")+4]
-                # send http real response istead of "okay"
-                self.clients[fd].send("okay\n")
-                # append stuff to cache
-                self.cache[fd] += last_chunk
-                self.clients[fd].send(self.cache[fd])
+                chunks = data.split("\r\n\r\n")
+
+                # adding the \r\n\r\n back into the chunks that had it
+                for i in range(len(chunks)):
+                    if i is not range(len(chunks)-1):
+                        logging.debug("adding \\r\\n\\r\\n to %s" % chunks[i])
+                        chunks[i] += "\r\n\r\n"
+
+                # append the last bit of the request to the cache
+                self.cache[fd] += chunks[0]
+                self.handle_request(self.cache[fd])
+                # remove the last bit of the request that we are handling and clear the cache
+                chunks.pop(0)
                 self.cache[fd] = ""
+
+                for req in chunks:
+                    if req.endswith("\r\n\r\n"):
+                        #return a response...and stuff 
+                        self.handle_request(req)
+                    else:
+                        self.cache[fd] = req
             else:
                 # append stuff to cache
                 self.cache[fd] += data
@@ -123,6 +139,12 @@ class Poller:
             del self.clients[fd]
 
     def parse_request(self, req):
-        p = HttpParser()
-        logging.debug("YO DAWG WE PARSIN")
+        resp = HTTPResponse(req)
+        return resp.begin()
+
+    def handle_request(self, request):
+        head = self.parse_request(request)
+        logging.debug(head.)
+        # Form the response
+        self.clients[fd].send("okay\n")
 

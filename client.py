@@ -7,7 +7,6 @@ class Client:
         self.host = host
         self.port = port
         self.size = 1024
-        self.cache = "davidasfwef"
         self.open_socket()
         print "Enter a blank line to stop."
         sys.stdout.write('> ')
@@ -36,8 +35,3 @@ class Client:
             sys.stdout.write('> ')
         self.server.close()
 
-    def getCache(self):
-        return cache
-
-    def setCache(self, value):
-        cache = value

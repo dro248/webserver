@@ -1,5 +1,5 @@
 """
-A TCP echo server that handles multiple clients with polling.  Typing
+A server that handles multiple clients with polling.  Typing
 Control-C will quit the server.
 """
 
@@ -17,7 +17,7 @@ class Main:
         ''' parse arguments, which include '-p' for port '''
         parser = argparse.ArgumentParser(prog='Echo Server', description='A simple echo server that handles one client at a time', add_help=True)
         parser.add_argument('-p', '--port', type=int, action='store', help='port the server will bind to',default=3000)
-        parser.add_argument('-d', '--debug', action='store true', help='use debug mode')
+        parser.add_argument('-d', '--debug', action='store_true', help='use debug mode')
         self.args = parser.parse_args()
 
     def run(self):
@@ -25,7 +25,7 @@ class Main:
             logging.basicConfig(level=logging.DEBUG)
         else:
             logging.basicConfig(level=logging.WARN)
-        p = Poller(self.args.port)
+        p = Poller(self.args)
         p.run()
 
 if __name__ == "__main__":
