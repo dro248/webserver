@@ -17,57 +17,25 @@ class Poller:
         print "Poller.__init__()..."
         logging.basicConfig(level=logging.DEBUG if args.debug else logging.WARN)
         
-        self.host = ""                  # Default; value set in web.conf
-        self.root = ""                  # Default; value set in web.conf
+        # parse web.conf
+        configs = self.parse_conf_file()
+
+        # set server cnnfiguration from web.conf
+        self.host = self.get_host(configs)
+        self.root = self.get_root(configs)
         self.port = args.port
         self.open_socket()
-        self.supportedMIMEtypes = []
-        self.timeout = 100                # Default; value set in web.conf
+        self.supportedMIMEtypes = self.get_supportedMIMEtypes(configs)
+        self.timeout = self.get_timeout(configs)
         self.clients = {}
         self.cache = {}
-        self.size = 1024 * 10
-
-        # parse web.conf
-        configs = []
-        with open('web.conf') as conf_file:
-            for line in conf_file:
-                if line != "\n":
-                    configs.append(line[0:-1] if line.endswith("\n") else line)
-
-        for el in configs:
-            print el
-
-        print "---------------"
-        # set host and root
-        if configs[0].startswith("host"):
-            # configs[0] = "host default web"
-            try:
-                vals = configs[0].split(' ')
-                print "vals:", vals
-                # self.host = vals[1] # THIS SHOULDN'T BE CHANGED!
-                self.root = vals[2]
-            except:
-                logging.error("Invalid HOST descriptor in web.conf.\n Usage: host [name] [path]")
-
-        print "Host:", self.host
-        print "Root:", self.root
+        self.size = 1024 * 10 
         
-        # set supported MIME types
-        for item in configs:
-            if item.startswith("media"):
-                vals = item.split(' ')
-                self.supportedMIMEtypes.append(vals[1])
-
-        print "Supported MIME types:", self.supportedMIMEtypes
-
-        print "------------------"
-
-        for item in configs:
-            if item.startswith("parameter"):
-                vals = item.split(' ')
-                self.timeout = int(vals[2])
-
-        print "timeout:",self.timeout
+        # print "CONFIGS:", configs
+        # print "Host:", self.host
+        # print "Root:", self.root
+        # print "Supported MIME types:", self.supportedMIMEtypes
+        # print "timeout:",self.timeout
 
         ##############################################
 
@@ -204,3 +172,48 @@ class Poller:
         logging.debug(response)
         self.clients[fd].send(response)
 
+
+
+########### PARSING CONFIG FILE ################
+
+    def parse_conf_file(self):
+        configs = []
+        try:
+            with open('web.conf') as conf_file:
+                for line in conf_file:
+                    if line != "\n":
+                        configs.append(line[0:-1] if line.endswith("\n") else line)
+        except:
+            logging.error("Could not find 'web.conf'. Exiting...")
+            sys.exit(1)
+        return configs
+
+
+    def get_host(self, configs):
+        # what is this supposed to do? Set to "default"?
+        return ""
+
+    def get_root(self, configs):
+        # set host and root
+        if configs[0].startswith("host"):
+            try:
+                return configs[0].split(' ')[2]    #return "web"...or whatever is in that position
+            except:
+                logging.error("Invalid HOST descriptor in web.conf.\n Usage: host [name] [path]\nExiting...")
+                sys.exit(1)
+
+
+    def get_supportedMIMEtypes(self, configs):
+        # set supported MIME types
+        types = []
+        for item in configs:
+            if item.startswith("media"):
+                vals = item.split(' ')
+                types.append(vals[1])
+        return types
+
+
+    def get_timeout(self, configs):
+        for item in configs:
+            if item.startswith("parameter"):
+                return int(item.split(' ')[2])
