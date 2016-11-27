@@ -14,13 +14,62 @@ except ImportError:
 class Poller:
     """ Polling server """
     def __init__(self,args):
-        self.host = ""
+        print "Poller.__init__()..."
+        logging.basicConfig(level=logging.DEBUG if args.debug else logging.WARN)
+        
+        self.host = ""                  # Default; value set in web.conf
+        self.root = ""                  # Default; value set in web.conf
         self.port = args.port
         self.open_socket()
+        self.supportedMIMEtypes = []
+        self.timeout = 100                # Default; value set in web.conf
         self.clients = {}
         self.cache = {}
         self.size = 1024 * 10
-        logging.basicConfig(level=logging.DEBUG if args.debug else logging.WARN)
+
+        # parse web.conf
+        configs = []
+        with open('web.conf') as conf_file:
+            for line in conf_file:
+                if line != "\n":
+                    configs.append(line[0:-1] if line.endswith("\n") else line)
+
+        for el in configs:
+            print el
+
+        print "---------------"
+        # set host and root
+        if configs[0].startswith("host"):
+            # configs[0] = "host default web"
+            try:
+                vals = configs[0].split(' ')
+                print "vals:", vals
+                # self.host = vals[1] # THIS SHOULDN'T BE CHANGED!
+                self.root = vals[2]
+            except:
+                logging.error("Invalid HOST descriptor in web.conf.\n Usage: host [name] [path]")
+
+        print "Host:", self.host
+        print "Root:", self.root
+        
+        # set supported MIME types
+        for item in configs:
+            if item.startswith("media"):
+                vals = item.split(' ')
+                self.supportedMIMEtypes.append(vals[1])
+
+        print "Supported MIME types:", self.supportedMIMEtypes
+
+        print "------------------"
+
+        for item in configs:
+            if item.startswith("parameter"):
+                vals = item.split(' ')
+                self.timeout = int(vals[2])
+
+        print "timeout:",self.timeout
+
+        ##############################################
 
     def open_socket(self):
         """ Setup the socket for incoming clients """
@@ -37,6 +86,7 @@ class Poller:
             sys.exit(1)
 
     def run(self):
+        print "Poller.run()..."
         """ Use poll() to handle each incoming client."""
         self.poller = select.epoll()
         self.pollmask = select.EPOLLIN | select.EPOLLHUP | select.EPOLLERR
@@ -44,7 +94,8 @@ class Poller:
         while True:
             # poll sockets
             try:
-                fds = self.poller.poll(timeout=1)
+                print "TIMEOUT is", self.timeout
+                fds = self.poller.poll(timeout=self.timeout)
             except:
                 return
             for (fd,event) in fds:
