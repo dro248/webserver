@@ -31,11 +31,11 @@ class Poller:
         self.cache = {}
         self.size = 1024 * 10 
         
-        # print "CONFIGS:", configs
-        # print "Host:", self.host
-        # print "Root:", self.root
-        # print "Supported MIME types:", self.supportedMIMEtypes
-        # print "timeout:",self.timeout
+        print "CONFIGS:", configs
+        print "Host:", self.host
+        print "Root:", self.root
+        print "Supported MIME types:", self.supportedMIMEtypes
+        print "timeout:",self.timeout
 
         ##############################################
 
@@ -167,6 +167,7 @@ class Poller:
     def handle_request(self, req, fd):
         parser = self.parse_request(req)
         headers = parser.get_headers()
+
         # TODO: Form the response
         response = "HTTP/1.1 %s\r\n%s\r\nSANTI!" % ("200 OK", "Content-Type: text/plain\r\n")
         logging.debug(response)
@@ -205,11 +206,12 @@ class Poller:
 
     def get_supportedMIMEtypes(self, configs):
         # set supported MIME types
-        types = []
+        types = {}
         for item in configs:
             if item.startswith("media"):
                 vals = item.split(' ')
-                types.append(vals[1])
+                # types.append(vals[1])
+                types[vals[1]] = vals[2]
         return types
 
 
