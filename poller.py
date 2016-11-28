@@ -17,7 +17,6 @@ except ImportError:
 class Poller:
     """ Polling server """
     def __init__(self,args):
-        print "Poller.__init__()..."
         logging.basicConfig(level=logging.DEBUG if args.debug else logging.WARN)
         
         # parse web.conf
@@ -34,12 +33,6 @@ class Poller:
         self.clientIdleTime = {}
         self.cache = {}
         self.size = 1024 * 10
-        
-        print "CONFIGS:", configs
-        print "Host:", self.host
-        print "Root:", self.root
-        print "Supported MIME types:", self.supportedMIMEtypes
-        print "timeout:",self.timeout
 
         ##############################################
 
@@ -58,7 +51,6 @@ class Poller:
             sys.exit(1)
 
     def run(self):
-        print "Poller.run()..."
         """ Use poll() to handle each incoming client."""
         self.poller = select.epoll()
         self.pollmask = select.EPOLLIN | select.EPOLLHUP | select.EPOLLERR
@@ -68,6 +60,10 @@ class Poller:
             try:
                 # poll sockets every half second
                 fds = self.poller.poll(timeout=0.5)
+
+                # update idle time for each client
+                for client in self.clientIdleTime:
+                    self.clientIdleTime[client] += 0.5
             except:
                 return
             for (fd,event) in fds:
@@ -82,11 +78,26 @@ class Poller:
                 # handle client socket
                 result = self.handleClient(fd)
 
-            ##############################################
-            #             SWEEP -- (MARK & SWEEP)        #
-            # TODO: Kick off clients idle for 1+ seconds #
-            ##############################################
+            ###############################################
+            #             SWEEP -- (MARK & SWEEP)         #
+            # TODO: Kick off clients idle for max timeout #
+            ###############################################
+            # print "clientsIdle...",self.clientIdleTime
+            # print "clients:", self.clients
 
+            fdsToBeDeleted = []
+            for client_fd in self.clientIdleTime:
+                # print "client_fd::::", client_fd
+                if self.clientIdleTime[client_fd] >= self.timeout:
+                    self.poller.unregister(client_fd)
+                    self.clients[client_fd].close()
+                    del self.cache[client_fd]
+                    del self.clients[client_fd]
+                    fdsToBeDeleted.append(client_fd)
+
+            # Delete client time-entries for clients that have been deleted
+            for fd in fdsToBeDeleted:
+                del self.clientIdleTime[fd]
 
 
 
@@ -102,6 +113,8 @@ class Poller:
             self.clients[fd].close()
             del self.cache[fd]
             del self.clients[fd]
+            # Delete client timestamp on client deletion
+            del self.clientIdleTime[fd]
 
     def handleServer(self):
         # accept as many clients as possible
@@ -118,6 +131,10 @@ class Poller:
             # set client socket to be non blocking
             client.setblocking(0)
             self.clients[client.fileno()] = client
+
+            # Create client timestamp on client creation
+            self.clientIdleTime[client.fileno()] = 0
+
             self.cache[client.fileno()] = ""
             self.poller.register(client.fileno(),self.pollmask)
 
@@ -158,23 +175,26 @@ class Poller:
                 logging.debug("Appending to cache[%i] += %s" % (fd, data))
                 self.cache[fd] += data
                 if "\r\n\r\n" in self.cache[fd]:
-                    #TODO: check for multiple requests in chache
+                    #TODO: check for multiple requests in cache
                     request_end_index = self.cache[fd].find("\r\n\r\n") + 4
                     request = self.cache[fd][:request_end_index]
                     self.handle_request(request, fd)
                     self.cache[fd] = self.cache[fd][request_end_index:]
         else:
+            # when does this happen?
             self.poller.unregister(fd)
             self.clients[fd].close()
             del self.cache[fd]
             del self.clients[fd]
+            # Delete client timestamp on client deletion
+            del self.clientIdleTime[fd]
+
 
         ##############################################
-        #              MARK -- (MARK & SWEEP)        #
+        #           MARK -- (MARK & SWEEP)           #
         # TODO: reset time to 0 for specified client #
         ##############################################
-        
-
+        self.clientIdleTime[fd] = 0
 
 
 
@@ -212,8 +232,6 @@ class Poller:
         logging.debug(response)
         self.clients[fd].send(response)
 
-
-
 ########### PARSING CONFIG FILE ################
 
     def parse_conf_file(self):
@@ -228,7 +246,6 @@ class Poller:
             sys.exit(1)
         return configs
 
-
     def get_host(self, configs):
         # default is "localhost"
         return "localhost"
@@ -242,7 +259,6 @@ class Poller:
                 logging.error("Invalid HOST descriptor in web.conf.\n Usage: host [name] [path]\nExiting...")
                 sys.exit(1)
 
-
     def get_supportedMIMEtypes(self, configs):
         # set supported MIME types
         types = {}
@@ -252,7 +268,6 @@ class Poller:
                 # types.append(vals[1])
                 types[vals[1]] = vals[2]
         return types
-
 
     def get_timeout(self, configs):
         for item in configs:
