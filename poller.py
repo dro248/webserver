@@ -185,16 +185,35 @@ class Poller:
         logging.debug("docRoot: %s, path: %s, basename: %s, ext: %s" % (self.root, path, basename, ext))
         filename = self.root + basename + ext
         if os.path.isfile(filename):
-            with open(filename, 'r') as content_file:
-                response_body = content_file.read()
-                return (response_body, self.supportedMIMEtypes[ext.strip(".")], "200 OK")
+            try:
+                with open(filename, 'r') as content_file:
+                    response_body = content_file.read()
+                    return (response_body, self.supportedMIMEtypes[ext.strip(".")], "200 OK")
+            except IOError, err:
+                if err.errno is 13:
+                    return ("<html><head><title>Error - Forbidden</title></head><body><h1>Error</h1><h3>%s Forbidden</h3></body></html>" % 
+                        path, self.supportedMIMEtypes["html"], "403 Forbidden")
+                else:
+                    return ("<html><head><title>Error - Internal Server Error</title></head><body><h1>Error</h1><h3>%s Internal Server Error</h3></body></html>" % 
+                        path, self.supportedMIMEtypes["html"], "500 Internal Server Error")
         else:
             logging.warn("file not found: %s" % filename)
-            return ("<html><head><title>Error - file not found</title></head><body><h1>Error</h1><h3>%s Not Found</h3></body></html>" % path,
-                self.supportedMIMEtypes["html"], "400 Internal Server Error")
+            return ("<html><head><title>Error - File Not Found</title></head><body><h1>Error</h1><h3>%s Not Found</h3></body></html>" % path,
+                self.supportedMIMEtypes["html"], "404 Not Found")
 
-    def gen_response(self, url):
-        body, mime_type, status = self.get_file(urlparse(url).path)
+    def gen_response(self, url, method):
+        path = urlparse(url).path
+        if path == "" or method == "":
+            body, mime_type, status = (
+                "<html><head><title>Error - Bad Request</title></head><body><h1>Error</h1><h3>%s Bad Request</h3></body></html>" % path,
+                    self.supportedMIMEtypes["html"], "400 Bad Request")
+        elif method != "GET":
+            logging.debug("%s::"%method)
+            body, mime_type, status = (
+                "<html><head><title>Error - Not Implemented</title></head><body><h1>Error</h1><h3>%s Not Implemented</h3></body></html>" % path,
+                    self.supportedMIMEtypes["html"], "501 Not Implemented")
+        else:
+            body, mime_type, status = self.get_file(path)
         date_header = "Date: %s\r\n" % self.rfc_1123_date()
         server_header = "Server: %s\r\n" % "python small server 1.0"
         type_header = "Content-Type: %s\r\n" % mime_type
@@ -208,12 +227,10 @@ class Poller:
         parser = self.parse_request(req)
         req_headers = parser.get_headers()
         
-        
-        response = self.gen_response(parser.get_url())
+        response = self.gen_response(parser.get_url(), parser.get_method())
+            
         logging.debug(response)
         self.clients[fd].send(response)
-
-
 
 ########### PARSING CONFIG FILE ################
 
