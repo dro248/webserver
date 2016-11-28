@@ -5,6 +5,9 @@ import sys
 import traceback
 import argparse
 import logging
+from wsgiref.handlers import format_date_time
+from datetime import datetime
+from time import mktime
 
 try:
     from http_parser.parser import HttpParser
@@ -62,7 +65,7 @@ class Poller:
         while True:
             # poll sockets
             try:
-                print "TIMEOUT is", self.timeout
+                #print "TIMEOUT is", self.timeout
                 fds = self.poller.poll(timeout=self.timeout)
             except:
                 return
@@ -139,15 +142,18 @@ class Poller:
 
                 for req in chunks:
                     if req.endswith("\r\n\r\n"):
-                        # return a response...and stuff 
-                        # are we sure that fd is the right socket
                         self.handle_request(req, fd)
                     else:
                         self.cache[fd] = req
             else:
-                # append stuff to cache
                 logging.debug("Appending to cache[%i] += %s" % (fd, data))
                 self.cache[fd] += data
+                if "\r\n\r\n" in self.cache[fd]:
+                    #TODO: check for multiple requests in chache
+                    request_end_index = self.cache[fd].find("\r\n\r\n") + 4
+                    request = self.cache[fd][:request_end_index]
+                    self.handle_request(request, fd)
+                    self.cache[fd] = self.cache[fd][request_end_index:]
         else:
             self.poller.unregister(fd)
             self.clients[fd].close()
@@ -164,12 +170,27 @@ class Poller:
         else:
             return parser
 
+    def rfc_1123_date(self):
+        now = datetime.now()
+        stamp = mktime(now.timetuple())
+        return format_date_time(stamp)
+
+    def gen_response(self, status, content_type):
+        body = "This is just some plaintext as a placeholder for the body"
+        date_header = "Date: %s\r\n" % self.rfc_1123_date()
+        server_header = "Server: %s\r\n" % "python small server 1.0"
+        type_header = "Content-Type: %s\r\n" % content_type
+        length_header = "Content-Length: %i\r\n" % len(body)
+        headers = date_header + server_header + length_header + type_header
+
+        head = "HTTP/1.1 %s\r\n%s\r\n" % (status, headers)
+        return head + body
+
     def handle_request(self, req, fd):
         parser = self.parse_request(req)
-        headers = parser.get_headers()
-
-        # TODO: Form the response
-        response = "HTTP/1.1 %s\r\n%s\r\nSANTI!" % ("200 OK", "Content-Type: text/plain\r\n")
+        req_headers = parser.get_headers()
+        
+        response = self.gen_response("200 OK", "text/plain")
         logging.debug(response)
         self.clients[fd].send(response)
 
@@ -219,3 +240,4 @@ class Poller:
         for item in configs:
             if item.startswith("parameter"):
                 return int(item.split(' ')[2])
+
