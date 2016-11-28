@@ -165,12 +165,7 @@ class Poller:
     def parse_request(self, req):
         parser = HttpParser()
         num_parsed = parser.execute(req, len(req))
-        if not parser.is_headers_complete() or parser.is_partial_body() or not parser.is_message_complete():
-            logging.error("Error parsing request")
-            logging.info("Request: %s" % req)
-            sys.exit(1)
-        else:
-            return parser
+        return parser
 
     def rfc_1123_date(self, timestamp=0):
         now = datetime.fromtimestamp(timestamp) if timestamp != 0 else datetime.now()
@@ -233,6 +228,10 @@ class Poller:
         parser = self.parse_request(req)
         req_headers = parser.get_headers()
         
+        if not parser.is_headers_complete() or parser.is_partial_body() or not parser.is_message_complete():
+            logging.error("Error parsing request")
+            logging.info("Request: %s" % req)
+            response = "<html><head><title>Error - Bad Request</title></head><body><h1>Error</h1><h3>Bad Request</h3></body></html>"
         response = self.gen_response(parser.get_url(), parser.get_method())
             
         logging.debug(response)
