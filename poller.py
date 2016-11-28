@@ -19,7 +19,7 @@ except ImportError:
 class Poller:
     """ Polling server """
     def __init__(self,args):
-        print "Poller.__init__()..."
+        logging.debug("Poller.__init__()...")
         logging.basicConfig(level=logging.DEBUG if args.debug else logging.WARN)
         
         # parse web.conf
@@ -36,11 +36,11 @@ class Poller:
         self.cache = {}
         self.size = 1024 * 10 
         
-        print "CONFIGS:", configs
-        print "Host:", self.host
-        print "Root:", self.root
-        print "Supported MIME types:", self.supportedMIMEtypes
-        print "timeout:",self.timeout
+        logging.debug("CONFIGS: %s" % configs)
+        logging.debug("Host: %s" % self.host)
+        logging.debug("Root: %s" % self.root)
+        logging.debug("Supported MIME types: %s" % self.supportedMIMEtypes)
+        logging.debug("timeout: %s" % self.timeout)
 
         ##############################################
 
@@ -59,7 +59,7 @@ class Poller:
             sys.exit(1)
 
     def run(self):
-        print "Poller.run()..."
+        logging.debug("Poller.run()...")
         """ Use poll() to handle each incoming client."""
         self.poller = select.epoll()
         self.pollmask = select.EPOLLIN | select.EPOLLHUP | select.EPOLLERR
@@ -67,7 +67,6 @@ class Poller:
         while True:
             # poll sockets
             try:
-                #print "TIMEOUT is", self.timeout
                 fds = self.poller.poll(timeout=self.timeout)
             except:
                 return
@@ -206,7 +205,6 @@ class Poller:
                 "<html><head><title>Error - Bad Request</title></head><body><h1>Error</h1><h3>%s Bad Request</h3></body></html>" % path,
                     self.supportedMIMEtypes["html"], "400 Bad Request")
         elif method != "GET":
-            logging.debug("%s::"%method)
             body, mime_type, status = (
                 "<html><head><title>Error - Not Implemented</title></head><body><h1>Error</h1><h3>%s Not Implemented</h3></body></html>" % path,
                     self.supportedMIMEtypes["html"], "501 Not Implemented")
