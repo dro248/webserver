@@ -33,8 +33,9 @@ class Poller:
         self.supportedMIMEtypes = self.get_supportedMIMEtypes(configs)
         self.timeout = self.get_timeout(configs)
         self.clients = {}
+        self.clientIdleTime = {}
         self.cache = {}
-        self.size = 1024 * 10 
+        self.size = 1024 * 10
         
         logging.debug("CONFIGS: %s" % configs)
         logging.debug("Host: %s" % self.host)
@@ -67,7 +68,8 @@ class Poller:
         while True:
             # poll sockets
             try:
-                fds = self.poller.poll(timeout=self.timeout)
+                # poll sockets every half second
+                fds = self.poller.poll(timeout=0.5)
             except:
                 return
             for (fd,event) in fds:
@@ -81,6 +83,14 @@ class Poller:
                     continue
                 # handle client socket
                 result = self.handleClient(fd)
+
+            ##############################################
+            #             SWEEP -- (MARK & SWEEP)        #
+            # TODO: Kick off clients idle for 1+ seconds #
+            ##############################################
+
+
+
 
     def handleError(self,fd):
         self.poller.unregister(fd)
@@ -160,6 +170,15 @@ class Poller:
             self.clients[fd].close()
             del self.cache[fd]
             del self.clients[fd]
+
+        ##############################################
+        #              MARK -- (MARK & SWEEP)        #
+        # TODO: reset time to 0 for specified client #
+        ##############################################
+        
+
+
+
 
     def parse_request(self, req):
         parser = HttpParser()
@@ -251,8 +270,8 @@ class Poller:
 
 
     def get_host(self, configs):
-        # what is this supposed to do? Set to "default"?
-        return ""
+        # default is "localhost"
+        return "localhost"
 
     def get_root(self, configs):
         # set host and root
