@@ -99,15 +99,26 @@ class Poller:
                 # print "client_fd::::", client_fd
                 if self.clientIdleTime[client_fd] >= self.timeout:
                     self.poller.unregister(client_fd)
-                    self.clients[client_fd].close()
-                    del self.cache[client_fd]
-                    del self.clients[client_fd]
+                    try:
+                        self.clients[client_fd].close()
+                    except:
+                        pass
+                    try:
+                        del self.cache[client_fd]
+                    except:
+                        pass
+                    try:
+                        del self.clients[client_fd]
+                    except:
+                        pass
                     fdsToBeDeleted.append(client_fd)
 
             # Delete client time-entries for clients that have been deleted
             for fd in fdsToBeDeleted:
-                del self.clientIdleTime[fd]
-
+                try:
+                    del self.clientIdleTime[fd]
+                except:
+                    pass
 
 
     def handleError(self,fd):
