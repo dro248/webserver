@@ -55,7 +55,7 @@ class Poller:
         except socket.error, (value,message):
             if self.server:
                 self.server.close()
-            logging.error("Could not open socket: " + message)
+            logging.error("Could not open socket: " + message + "\nExiting. Gracefully.\n=)")
             sys.exit(1)
 
     def run(self):

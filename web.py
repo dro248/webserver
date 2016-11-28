@@ -16,7 +16,7 @@ class Main:
     def parse_arguments(self):
         ''' parse arguments, which include '-p' for port '''
         parser = argparse.ArgumentParser(prog='Echo Server', description='A simple echo server that handles one client at a time', add_help=True)
-        parser.add_argument('-p', '--port', type=int, action='store', help='port the server will bind to',default=3000)
+        parser.add_argument('-p', '--port', type=int, action='store', help='port the server will bind to',default=8080)
         parser.add_argument('-d', '--debug', action='store_true', help='use debug mode')
         self.args = parser.parse_args()
 
