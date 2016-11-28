@@ -172,18 +172,21 @@ class Poller:
         else:
             return parser
 
-    def rfc_1123_date(self):
-        now = datetime.now()
+    def rfc_1123_date(self, timestamp=0):
+        now = datetime.fromtimestamp(timestamp) if timestamp != 0 else datetime.now()
         stamp = mktime(now.timetuple())
         return format_date_time(stamp)
 
-    def get_file(self, path):
+    def get_filename(self, path):
         basename, ext = os.path.splitext(path)
         if basename is "/":
             basename = "/index"
             ext = ".html"
         logging.debug("docRoot: %s, path: %s, basename: %s, ext: %s" % (self.root, path, basename, ext))
-        filename = self.root + basename + ext
+        return (self.root + basename + ext, basename, ext)
+
+    def get_file(self, path):
+        filename, basename, ext = self.get_filename(path)
         if os.path.isfile(filename):
             try:
                 with open(filename, 'r') as content_file:
@@ -219,6 +222,9 @@ class Poller:
         type_header = "Content-Type: %s\r\n" % mime_type
         length_header = "Content-Length: %i\r\n" % len(body)
         headers = date_header + server_header + length_header + type_header
+        if status.startswith("200"):
+            last_modified_header = "Last-Modified: %s\r\n" % self.rfc_1123_date(os.path.getmtime(self.get_filename(path)[0]))
+            headers += last_modified_header
 
         head = "HTTP/1.1 %s\r\n%s\r\n" % (status, headers)
         return head + body
