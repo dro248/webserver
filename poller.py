@@ -180,10 +180,10 @@ class Poller:
     def get_file(self, path):
         basename, ext = os.path.splitext(path)
         if basename is "/":
-            basename = "index"
+            basename = "/index"
             ext = ".html"
         logging.debug("docRoot: %s, path: %s, basename: %s, ext: %s" % (self.root, path, basename, ext))
-        filename = self.root + "/" + basename + ext
+        filename = self.root + basename + ext
         if os.path.isfile(filename):
             with open(filename, 'r') as content_file:
                 response_body = content_file.read()
@@ -191,7 +191,7 @@ class Poller:
         else:
             logging.warn("file not found: %s" % filename)
             return ("<html><head><title>Error - file not found</title></head><body><h1>Error</h1><h3>%s Not Found</h3></body></html>" % path,
-                self.supportedMIMEtypes["html"], "500 Internal Server Error")
+                self.supportedMIMEtypes["html"], "400 Internal Server Error")
 
     def gen_response(self, url):
         body, mime_type, status = self.get_file(urlparse(url).path)
