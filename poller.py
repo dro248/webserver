@@ -5,6 +5,8 @@ import sys
 import traceback
 import argparse
 import logging
+import os
+from urlparse import urlparse
 from wsgiref.handlers import format_date_time
 from datetime import datetime
 from time import mktime
@@ -175,11 +177,27 @@ class Poller:
         stamp = mktime(now.timetuple())
         return format_date_time(stamp)
 
-    def gen_response(self, status, content_type):
-        body = "This is just some plaintext as a placeholder for the body"
+    def get_file(self, path):
+        basename, ext = os.path.splitext(path)
+        if basename is "/":
+            basename = "index"
+            ext = ".html"
+        logging.debug("docRoot: %s, path: %s, basename: %s, ext: %s" % (self.root, path, basename, ext))
+        filename = self.root + "/" + basename + ext
+        if os.path.isfile(filename):
+            with open(filename, 'r') as content_file:
+                response_body = content_file.read()
+                return (response_body, self.supportedMIMEtypes[ext.strip(".")], "200 OK")
+        else:
+            logging.warn("file not found: %s" % filename)
+            return ("<html><head><title>Error - file not found</title></head><body><h1>Error</h1><h3>%s Not Found</h3></body></html>" % path,
+                self.supportedMIMEtypes["html"], "500 Internal Server Error")
+
+    def gen_response(self, url):
+        body, mime_type, status = self.get_file(urlparse(url).path)
         date_header = "Date: %s\r\n" % self.rfc_1123_date()
         server_header = "Server: %s\r\n" % "python small server 1.0"
-        type_header = "Content-Type: %s\r\n" % content_type
+        type_header = "Content-Type: %s\r\n" % mime_type
         length_header = "Content-Length: %i\r\n" % len(body)
         headers = date_header + server_header + length_header + type_header
 
@@ -190,7 +208,8 @@ class Poller:
         parser = self.parse_request(req)
         req_headers = parser.get_headers()
         
-        response = self.gen_response("200 OK", "text/plain")
+        
+        response = self.gen_response(parser.get_url())
         logging.debug(response)
         self.clients[fd].send(response)
 
